@@ -20,6 +20,7 @@ public class MircClient {
     public void sendMessage(String message) throws IOException {
         out.println(message);
         System.out.println(in.readLine());
+
     }
 
     public void stopConnection() throws IOException {
