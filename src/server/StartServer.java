@@ -1,12 +1,10 @@
-package Run;
-
-import server.MircServer;
+package server;
 
 import java.io.IOException;
 
 public class StartServer {
     public static void main(String[] args) throws IOException {
-        MircServer server = new MircServer();
+        Server server = new Server();
         server.start();
     }
 }
