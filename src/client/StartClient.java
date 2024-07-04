@@ -9,22 +9,14 @@ public class StartClient {
     public static void main(String[] args) throws IOException {
         Client client = new Client();
         // Connect to server
-        client.startConnection("127.0.0.1", 2222);
+        client.startConnection("34.159.211.187", 2222);
         Scanner scanner = new Scanner(System.in);
-        while (true) {
-            client.sendMessage(scanner.nextLine(), new User("TestUser"));
-        }
-    }
-}
+        //TODO: pass username from gui
+        String username = "UserName";
+        User user = new User(username);
 
-class StartClient2 {
-    public static void main(String[] args) throws IOException {
-        Client client = new Client();
-        // Connect to server
-        client.startConnection("127.0.0.1", 2222);
-        Scanner scanner = new Scanner(System.in);
         while (true) {
-            client.sendMessage(scanner.nextLine(), new User("TestUser2"));
+            client.sendMessage(scanner.nextLine(), user);
         }
     }
 }
