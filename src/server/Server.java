@@ -7,7 +7,6 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 public class Server {
     private static final int PORT = 2222;
     private static final String STOP_STRING = "@kill";
@@ -22,11 +21,6 @@ public class Server {
         while (true) {
             new ClientHandler(serverSocket.accept()).start();
         }
-    }
-
-    public static void main(String[] args) throws IOException {
-        Server server = new Server();
-        server.start();
     }
 
     private static class ClientHandler extends Thread {
