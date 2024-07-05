@@ -14,7 +14,7 @@ public class Server {
     private static final String CONNECT_TO_CHANNEL = "/connect";
     private static final String DISCONNECT_FROM_CHANNEL = "/disconnect";
     private ServerSocket serverSocket;
-    private static ConcurrentHashMap<Channel, List<ClientHandler>> channels = new ConcurrentHashMap<>();
+    private static ConcurrentHashMap<Channel, List<ClientHandler>> channels = new ConcurrentHashMap<>(); //ConcurrentHashMap is the Map implementation that allows us to modify the Map while iteration
 
     public void start() throws IOException {
         this.serverSocket = new ServerSocket(PORT);
@@ -36,9 +36,10 @@ public class Server {
             channels.putIfAbsent(global, Collections.synchronizedList(new ArrayList<>()));
         }
 
+    
         public void createChannel(User user, String name, String password) {
             Channel channel = new Channel(name, password);
-            channels.putIfAbsent(channel, Collections.synchronizedList(new ArrayList<>()));
+            channels.putIfAbsent(channel, Collections.synchronizedList(new ArrayList<>())); // Just one thread can modify the list at a time 
             connectToChannel(user, channel);
         }
 
@@ -49,7 +50,7 @@ public class Server {
             }
             List<ClientHandler> handlers = channels.get(channel);
             if (handlers != null) {
-                synchronized (handlers) {
+                synchronized (handlers) {      // Just one thread at a time can complete the following task
                     handlers.add(this);
                     channels.put(channel, handlers);
                 }
@@ -100,7 +101,7 @@ public class Server {
                         out.println("Invalid message format!");
                         continue;
                     }
-
+                    
                     String username = rawMessage[0];
                     message = rawMessage[1];
 
@@ -108,7 +109,8 @@ public class Server {
                         currentUser = new User(username);
                         connectToChannel(currentUser, global);
                     }
-
+                    // Handling commands in chat
+                    
                     if (message.charAt(0) == '/') {
                         String[] command = message.split(" ");
                         if (command.length > 0) {
