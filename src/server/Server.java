@@ -14,7 +14,7 @@ public class Server {
     private static final String CONNECT_TO_CHANNEL = "/connect";
     private static final String DISCONNECT_FROM_CHANNEL = "/disconnect";
     private ServerSocket serverSocket;
-    private static ConcurrentHashMap<Channel, List<ClientHandler>> channels = new ConcurrentHashMap<>(); //ConcurrentHashMap is the Map implementation that allows us to modify the Map while iteration
+    private static ConcurrentHashMap<Channel, List<ClientHandler>> channels = new ConcurrentHashMap<>();
 
     public void start() throws IOException {
         this.serverSocket = new ServerSocket(PORT);
@@ -28,18 +28,17 @@ public class Server {
         private PrintWriter out;
         private BufferedReader in;
         private User currentUser;
-        private Channel currentChannel;
-        private static final Channel global = new Channel("global", "");
+        private static final Channel global = new Channel("global", "global");
+        private Channel currentChannel = global;
 
         public ClientHandler(Socket socket) {
             this.clientSocket = socket;
             channels.putIfAbsent(global, Collections.synchronizedList(new ArrayList<>()));
         }
 
-    
         public void createChannel(User user, String name, String password) {
             Channel channel = new Channel(name, password);
-            channels.putIfAbsent(channel, Collections.synchronizedList(new ArrayList<>())); // Just one thread can modify the list at a time 
+            channels.putIfAbsent(channel, Collections.synchronizedList(new ArrayList<>()));
             connectToChannel(user, channel);
         }
 
@@ -50,12 +49,14 @@ public class Server {
             }
             List<ClientHandler> handlers = channels.get(channel);
             if (handlers != null) {
-                synchronized (handlers) {      // Just one thread at a time can complete the following task
+                synchronized (handlers) {
                     handlers.add(this);
                     channels.put(channel, handlers);
+                    disconnectFromChannel(user, currentChannel);
                 }
                 this.currentChannel = channel;
                 out.println("Connected to " + channel.getName());
+                out.println("HTTP_STATUS_200");
                 broadcastMessage(user.getUserName() + " has joined the channel " + channel.getName(), channel);
             } else {
                 out.println("Channel doesn't exist!");
@@ -70,7 +71,8 @@ public class Server {
                     channels.put(channel, handlers);
                 }
                 broadcastMessage(user.getUserName() + " has left the channel " + channel.getName(), channel);
-                this.currentChannel = null;
+                this.currentChannel = global;
+                out.println("HTTP_STATUS_200");
             } else {
                 out.println("You can't disconnect from a channel that doesn't exist!");
             }
@@ -81,6 +83,7 @@ public class Server {
             synchronized (handlers) {
                 for (ClientHandler handler : handlers) {
                     handler.out.println(message);
+                    System.out.println(message);
                 }
             }
         }
@@ -101,16 +104,10 @@ public class Server {
                         out.println("Invalid message format!");
                         continue;
                     }
-                    
+
                     String username = rawMessage[0];
                     message = rawMessage[1];
 
-                    if (currentUser == null) {
-                        currentUser = new User(username);
-                        connectToChannel(currentUser, global);
-                    }
-                    // Handling commands in chat
-                    
                     if (message.charAt(0) == '/') {
                         String[] command = message.split(" ");
                         if (command.length > 0) {
@@ -152,7 +149,6 @@ public class Server {
                                             disconnectFromChannel(currentUser, c);
                                             System.out.println(currentUser.getUserName() + " disconnected from " + c.getName());
                                             disconnected = true;
-                                            connectToChannel(currentUser, global);
                                             break;
                                         }
                                     }
@@ -165,7 +161,11 @@ public class Server {
                             }
                         }
                     } else {
-                        broadcastMessage(username + ": " + message, currentChannel);
+                        if (!message.equals(" ")) {
+                            if (!message.equals("HTTP_STATUS_200")) {
+                                broadcastMessage(username + ": " + message, currentChannel);
+                            }
+                        }
                     }
                 }
 

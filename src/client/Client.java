@@ -1,7 +1,7 @@
 package client;
 
 import utils.User;
-
+import javax.swing.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -11,22 +11,41 @@ import java.net.Socket;
 public class Client {
     private Socket clientSocket;
     private PrintWriter out;
-    private BufferedReader in;
+    BufferedReader in;
     private Thread receiveThread;
+    private MessageHandler messageHandler;
+    private JTextArea textArea;
+
+    public interface MessageHandler {
+        void handleMessage(String message);
+    }
+
+    public void setMessageHandler(MessageHandler handler) {
+        this.messageHandler = handler;
+    }
+
+    public void setTextArea(JTextArea textArea) {
+        this.textArea = textArea;
+    }
 
     public void startConnection(String ip, int port) throws IOException {
         this.clientSocket = new Socket(ip, port);
         out = new PrintWriter(clientSocket.getOutputStream(), true);
         in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
-        // Start a new thread to handle incoming messages
         receiveThread = new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
                     String response;
                     while ((response = in.readLine()) != null) {
-                        System.out.println(response);
+                        if (messageHandler != null) {
+//                            if (response.equals("HTTP_STATUS_200")) {
+//                                clearMessages(textArea);
+//                            } else {
+                                messageHandler.handleMessage(response);
+//                            }
+                        }
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -36,20 +55,12 @@ public class Client {
         receiveThread.start();
     }
 
-    public void sendMessage(String message, User user) {
-        out.println(user.getUserName() + ": " + message);
+    public void clearMessages(JTextArea textArea) {
+        textArea.setText(null);
     }
 
-    public void stopConnection() throws IOException {
-        try {
-            if (receiveThread != null) {
-                receiveThread.interrupt();
-            }
-            in.close();
-            out.close();
-            clientSocket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    public void sendMessage(String message, User user) {
+        String fullMessage = user.getUserName() + ": " + message;
+        out.println(fullMessage);
     }
 }
