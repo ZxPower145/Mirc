@@ -1,7 +1,6 @@
 package client;
 
 import utils.User;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -11,8 +10,17 @@ import java.net.Socket;
 public class Client {
     private Socket clientSocket;
     private PrintWriter out;
-    private BufferedReader in;
+    BufferedReader in; // Modified access level
     private Thread receiveThread;
+    private MessageHandler messageHandler;
+
+    public interface MessageHandler {
+        void handleMessage(String message);
+    }
+
+    public void setMessageHandler(MessageHandler handler) {
+        this.messageHandler = handler;
+    }
 
     public void startConnection(String ip, int port) throws IOException {
         this.clientSocket = new Socket(ip, port);
@@ -26,7 +34,9 @@ public class Client {
                 try {
                     String response;
                     while ((response = in.readLine()) != null) {
-                        System.out.println(response);
+                        if (messageHandler != null) {
+                            messageHandler.handleMessage(response);
+                        }
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -37,19 +47,8 @@ public class Client {
     }
 
     public void sendMessage(String message, User user) {
-        out.println(user.getUserName() + ": " + message);
+        String fullMessage = user.getUserName() + ": " + message;
+        out.println(fullMessage);
     }
 
-    public void stopConnection() throws IOException {
-        try {
-            if (receiveThread != null) {
-                receiveThread.interrupt();
-            }
-            in.close();
-            out.close();
-            clientSocket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 }
