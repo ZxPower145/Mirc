@@ -22,6 +22,10 @@ public class Gui extends JFrame {
 
     public Gui() {
         super("mIRC Chat");
+
+        Image icon = Toolkit.getDefaultToolkit().getImage("assets/logo.png");
+        this.setIconImage(icon);
+
         client = new Client();
 
         usernameField = new JTextField(20);
