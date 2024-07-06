@@ -109,20 +109,20 @@ public class Gui extends JFrame {
                 String[] ipPort = {};
                 if (ip.contains(":")) {
                     ipPort = ip.split(":");
+                    if (!username.isEmpty() && ipPort.length == 2) {
+                        user = new User(username);
+                        try {
+                            client.startConnection(ipPort[0], Integer.parseInt(ipPort[1]));
+                            sendMessage("/connect global global");
+                        } catch (IOException exception) {
+                            exception.printStackTrace();
+                            JOptionPane.showMessageDialog(null, "Server not found!");
+                        }
+                    } else {
+                        JOptionPane.showMessageDialog(null, "Please enter a username.");
+                    }
                 } else {
                     JOptionPane.showMessageDialog(null, "Please enter a valid ip and port.");
-                }
-                if (!username.isEmpty() && !ip.isEmpty()) {
-                    user = new User(username);
-                    try {
-                        client.startConnection(ipPort[0], Integer.parseInt(ipPort[1]));
-                    } catch (IOException exception) {
-                        exception.printStackTrace();
-                        JOptionPane.showMessageDialog(null, "Server not found!");
-                    }
-                    sendMessage(" ");
-                } else {
-                    JOptionPane.showMessageDialog(null, "Please enter a username.");
                 }
             }
         });
