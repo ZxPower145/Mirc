@@ -14,64 +14,64 @@ public class Server {
     private static final String CONNECT_TO_CHANNEL = "/connect";
     private static final String DISCONNECT_FROM_CHANNEL = "/disconnect";
     private ServerSocket serverSocket;
-    private static ConcurrentHashMap<Channel, List<ClientHandler>> channels = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Channel, List<ClientHandler>> channels = new ConcurrentHashMap<>();
 
     public void start() throws IOException {
         this.serverSocket = new ServerSocket(PORT);
+        System.out.println("Server started on port " + PORT);
         while (true) {
-            new ClientHandler(serverSocket.accept()).start();
+            Socket clientSocket = serverSocket.accept();
+            System.out.println("New client connected: " + clientSocket.getInetAddress());
+            new ClientHandler(clientSocket).start();
         }
     }
 
     private static class ClientHandler extends Thread {
-        private Socket clientSocket;
+        private final Socket clientSocket;
         private PrintWriter out;
         private BufferedReader in;
         private User currentUser;
-        private static final Channel global = new Channel("global", "global");
+        private final Channel global = new Channel("global", "global");
         private Channel currentChannel = global;
 
         public ClientHandler(Socket socket) {
             this.clientSocket = socket;
-            channels.putIfAbsent(global, Collections.synchronizedList(new ArrayList<>()));
         }
 
-        public void createChannel(User user, String name, String password) {
+        public void createChannel(String name, String password) {
             Channel channel = new Channel(name, password);
             channels.putIfAbsent(channel, Collections.synchronizedList(new ArrayList<>()));
-            connectToChannel(user, channel);
+            connectToChannel(currentUser, channel, true);
         }
 
-        public void connectToChannel(User user, Channel channel) {
-            if (channels.get(channel).stream().anyMatch(handler -> handler.currentUser.equals(user))) {
-                out.println("You are already in this channel");
-                return;
-            }
+        public void connectToChannel(User user, Channel channel, boolean status) {
             List<ClientHandler> handlers = channels.get(channel);
             if (handlers != null) {
                 synchronized (handlers) {
                     handlers.add(this);
                     channels.put(channel, handlers);
-                    disconnectFromChannel(user, currentChannel);
+                    if (currentChannel != null && !currentChannel.equals(channel))
+                        disconnectFromChannel(currentChannel);
+                    this.currentChannel = channel;
+                    out.println("Connected to " + channel.getName());
+                    if (status) {
+                        out.println("HTTP_STATUS_200");
+                    }
+                    broadcastMessage(user.getUserName() + " has joined the channel " + channel.getName(), channel);
                 }
-                this.currentChannel = channel;
-                out.println("Connected to " + channel.getName());
-                out.println("HTTP_STATUS_200");
-                broadcastMessage(user.getUserName() + " has joined the channel " + channel.getName(), channel);
             } else {
                 out.println("Channel doesn't exist!");
             }
         }
 
-        public void disconnectFromChannel(User user, Channel channel) {
+        public void disconnectFromChannel(Channel channel) {
             List<ClientHandler> handlers = channels.get(channel);
             if (handlers != null) {
                 synchronized (handlers) {
                     handlers.remove(this);
                     channels.put(channel, handlers);
                 }
-                broadcastMessage(user.getUserName() + " has left the channel " + channel.getName(), channel);
-                this.currentChannel = global;
+                broadcastMessage(currentUser.getUserName() + " has left the channel " + channel.getName(), channel);
                 out.println("HTTP_STATUS_200");
             } else {
                 out.println("You can't disconnect from a channel that doesn't exist!");
@@ -79,14 +79,16 @@ public class Server {
         }
 
         public void broadcastMessage(String message, Channel channel) {
+            channels.putIfAbsent(global, Collections.synchronizedList(new ArrayList<>()));
             List<ClientHandler> handlers = channels.get(channel);
             synchronized (handlers) {
                 for (ClientHandler handler : handlers) {
-                    handler.out.println(message);
-                    System.out.println(message);
+                    if (!message.isEmpty() && !message.equals(" "))
+                        handler.out.println(message);
                 }
             }
         }
+
 
         public void run() {
             try {
@@ -108,15 +110,21 @@ public class Server {
                     String username = rawMessage[0];
                     message = rawMessage[1];
 
-                    if (message.charAt(0) == '/') {
+                    if (currentUser == null) {
+                        currentUser = new User(username);
+                        channels.putIfAbsent(global, Collections.synchronizedList(new ArrayList<>()));
+                        connectToChannel(currentUser, global, false);
+                        currentChannel = global;
+                    }
+
+                    if (message.startsWith("/")) {
                         String[] command = message.split(" ");
                         if (command.length > 0) {
                             switch (command[0]) {
                                 case CREATE_CHANNEL_COMMAND:
                                     if (command.length == 3) {
-                                        createChannel(currentUser, command[1], command[2]);
+                                        createChannel(command[1], command[2]);
                                         out.println("Channel created: " + command[1]);
-                                        System.out.println("Channel created: " + command[1]);
                                     } else {
                                         out.println("Invalid create command format!");
                                     }
@@ -126,10 +134,7 @@ public class Server {
                                         boolean found = false;
                                         for (Channel c : channels.keySet()) {
                                             if (c.getName().equals(command[1]) && c.getPassword().equals(command[2])) {
-                                                connectToChannel(currentUser, c);
-                                                for (ClientHandler handler : channels.get(c)) {
-                                                    System.out.println("Users in [" + c.getName() + "]: " + handler.currentUser.getUserName());
-                                                }
+                                                connectToChannel(currentUser, c, true);
                                                 found = true;
                                                 break;
                                             }
@@ -146,8 +151,8 @@ public class Server {
                                     for (Channel c : channels.keySet()) {
                                         List<ClientHandler> handlers = channels.get(c);
                                         if (handlers.contains(this)) {
-                                            disconnectFromChannel(currentUser, c);
-                                            System.out.println(currentUser.getUserName() + " disconnected from " + c.getName());
+                                            disconnectFromChannel(c);
+                                            connectToChannel(currentUser, global, true);
                                             disconnected = true;
                                             break;
                                         }
@@ -161,16 +166,9 @@ public class Server {
                             }
                         }
                     } else {
-                        if (!message.equals(" ")) {
-                            if (!message.equals("HTTP_STATUS_200")) {
-                                broadcastMessage(username + ": " + message, currentChannel);
-                            }
-                        }
+                        if (!message.equals(" "))
+                            broadcastMessage(username + ": " + message, currentChannel);
                     }
-                }
-
-                if (currentUser != null && currentChannel != null) {
-                    disconnectFromChannel(currentUser, currentChannel);
                 }
 
                 in.close();

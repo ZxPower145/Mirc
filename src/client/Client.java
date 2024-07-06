@@ -40,11 +40,10 @@ public class Client {
                     String response;
                     while ((response = in.readLine()) != null) {
                         if (messageHandler != null) {
-//                            if (response.equals("HTTP_STATUS_200")) {
-//                                clearMessages(textArea);
-//                            } else {
+                            if (response.equals("HTTP_STATUS_200"))
+                                clearMessages(textArea);
+                            else if (!response.equals(" "))
                                 messageHandler.handleMessage(response);
-//                            }
                         }
                     }
                 } catch (IOException e) {
