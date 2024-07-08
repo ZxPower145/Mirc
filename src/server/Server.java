@@ -15,10 +15,13 @@ public class Server {
     private static final String DISCONNECT_FROM_CHANNEL = "/disconnect";
     private ServerSocket serverSocket;
     private static final ConcurrentHashMap<Channel, List<ClientHandler>> channels = new ConcurrentHashMap<>();
+    private static final Channel global = new Channel("global", "global");
 
     public void start() throws IOException {
         this.serverSocket = new ServerSocket(PORT);
         System.out.println("Server started on port " + PORT);
+
+        channels.putIfAbsent(global, Collections.synchronizedList(new ArrayList<>()));
         while (true) {
             Socket clientSocket = serverSocket.accept();
             System.out.println("New client connected: " + clientSocket.getInetAddress());
@@ -31,7 +34,6 @@ public class Server {
         private PrintWriter out;
         private BufferedReader in;
         private User currentUser;
-        private final Channel global = new Channel("global", "global");
         private Channel currentChannel = global;
 
         public ClientHandler(Socket socket) {
@@ -88,7 +90,6 @@ public class Server {
         }
 
         public void broadcastMessage(String message, Channel channel) {
-            channels.putIfAbsent(global, Collections.synchronizedList(new ArrayList<>()));
             List<ClientHandler> handlers = channels.get(channel);
             synchronized (handlers) {
                 for (ClientHandler handler : handlers) {
@@ -121,7 +122,6 @@ public class Server {
 
                     if (currentUser == null) {
                         currentUser = new User(username);
-                        channels.putIfAbsent(global, Collections.synchronizedList(new ArrayList<>()));
                     }
 
                     if (message.startsWith("/")) {
@@ -129,9 +129,10 @@ public class Server {
                         if (command.length > 0) {
                             switch (command[0]) {
                                 case CREATE_CHANNEL_COMMAND:
-                                    if (command.length == 3)
+                                    if (command.length == 3){
+                                        disconnectFromChannel(currentUser, currentChannel);
                                         createChannel(currentUser , command[1], command[2]);
-                                    else {
+                                    } else {
                                         out.println("Invalid create command format!");
                                     }
                                     break;
@@ -140,6 +141,7 @@ public class Server {
                                         boolean found = false;
                                         for (Channel c : channels.keySet()) {
                                             if (c.getName().equals(command[1]) && c.getPassword().equals(command[2])) {
+                                                disconnectFromChannel(currentUser, currentChannel);
                                                 connectToChannel(currentUser, c, true);
                                                 found = true;
                                                 break;
@@ -158,7 +160,6 @@ public class Server {
                                         List<ClientHandler> handlers = channels.get(c);
                                         if (handlers.contains(this)) {
                                             disconnectFromChannel(currentUser, c);
-                                            connectToChannel(currentUser, global, true);
                                             disconnected = true;
                                             break;
                                         }
